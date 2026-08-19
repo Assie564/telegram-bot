@@ -13,7 +13,7 @@ from telethon.sessions import StringSession
 api_id = 30133788
 api_hash = "1f2d2d024eaafe22909fbb1131e1f084"
 
-SESSION = "1BJWap1sBuyDitjiqa5zljH-ujf-oP7Uf5DmEuRcjL_y4lkiPjgmuz0W4Dp_UAnpTWww7W8F4v9agiRZYpBX4XAW0IDhsjSSTuWbAUXbtaqy4yo-fnSwM7bQlvoeyVvoYqrfGuh6iCMtFT3cJQEfiy-HvrZ32__6Pw45aEEjNT7wpsll5FGCEUW2hPgW-VLu7zizbtGwcSaOXJI7hdftwM5oPsA9XsilJRcqyyMVamJEloHkAn9B5gvMRqDpzohLJvb9rLxtC980gf-qt8dvddGAqFN5-oDRVoOAUGtizRsbVgz1TSrW-IJ_ixgUkB6jRjrwZ2aUPl7a5nzacKyS26RZTWFuOBHM="  # 👈 your real session here
+SESSION = "1BJWap1sBuyDitjiqa5zljH-ujf-oP7Uf5DmEuRcjL_y4lkiPjgmuz0W4Dp_UAnpTWww7W8F4v9agiRZYpBX4XAW0IDhsjSSTuWbAUXbtaqy4yo-fnSwM7bQlvoeyVvoYqrfGuh6iCMtFT3cJQEfiy-HvrZ32__6Pw45aEEjNT7wpsll5FGCEUW2hPgW-VLu7zizbtGwcSaOXJI7hdftwM5oPsA9XsilJRcqyyMVamJEloHkAn9B5gvMRqDpzohLJvb9rLxtC980gf-qt8dvddGAqFN5-oDRVoOAUGtizRsbVgz1TSrW-IJ_ixgUkB6jRjrwZ2aUPl7a5nzacKyS26RZTWFuOBHM="
 
 # ==========================
 # 📡 CHANNELS
@@ -40,9 +40,11 @@ if os.path.exists(DATA_FILE):
 else:
     processed = {}
 
+
 def save():
     with open(DATA_FILE, "w") as f:
         json.dump(processed, f)
+
 
 # ==========================
 # 🧹 CLEAN TEXT
@@ -51,7 +53,11 @@ def clean_text(text):
     if not text:
         return ""
 
-    # ❌ REMOVED:
+    # IMPORTANT:
+    # DO NOT REMOVE URLS.
+    # DO NOT REMOVE t.me LINKS.
+    #
+    # Original lines removed:
     # text = re.sub(r"http\S+", "", text)
     # text = re.sub(r"t\.me/\S+", "", text)
 
@@ -59,12 +65,18 @@ def clean_text(text):
     text = re.sub(r"@\w+", "", text)
 
     # remove spam words
-    text = re.sub(r"(join|subscribe|follow)", "", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"(join|subscribe|follow)",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
 
     # remove extra spaces
     text = re.sub(r"\n\s*\n", "\n\n", text)
 
     return text.strip()
+
 
 # ==========================
 # 🚫 REMOVE NOISE LINES
@@ -74,11 +86,16 @@ def remove_noise_lines(text):
     clean_lines = []
 
     for line in lines:
-        if any(word in line.lower() for word in ["join", "follow", "subscribe", "@"]):
+        if any(
+            word in line.lower()
+            for word in ["join", "follow", "subscribe", "@"]
+        ):
             continue
+
         clean_lines.append(line)
 
     return "\n".join(clean_lines)
+
 
 # ==========================
 # 🧠 DUPLICATE CHECK
@@ -87,7 +104,9 @@ def get_hash(text):
     text = clean_text((text or "").lower())
     return hashlib.md5(text.encode()).hexdigest()
 
+
 print("🚀 PROFESSIONAL BOT RUNNING")
+
 
 # ==========================
 # 📸 HANDLE ALBUMS
@@ -95,7 +114,10 @@ print("🚀 PROFESSIONAL BOT RUNNING")
 @client.on(events.Album(chats=source_channels))
 async def album_handler(event):
 
-    text = event.messages[0].text or ""
+    message = event.messages[0]
+
+    text = message.text or ""
+
     hash_key = get_hash(text)
 
     if hash_key in processed:
@@ -105,19 +127,36 @@ async def album_handler(event):
     processed[hash_key] = True
     save()
 
-    files = [msg.media for msg in event.messages]
+    files = [
+        msg.media
+        for msg in event.messages
+    ]
 
     clean = clean_text(text)
     clean = remove_noise_lines(clean)
 
-    # optional branding
+    # ==========================
+    # 📢 BRANDING
+    # ==========================
     clean += "\n\n📢 @AAUCentral"
 
     try:
-        await client.send_file(destination_channel, files, caption=clean)
-        print("📸 Album forwarded clean")
+
+        await client.send_file(
+            destination_channel,
+            files,
+            caption=clean,
+
+            # 🔗 PRESERVE TELEGRAM LINKS
+            formatting_entities=message.entities
+        )
+
+        print("📸 Album forwarded clean with links")
+
     except Exception as e:
+
         print("Error:", e)
+
 
 # ==========================
 # ✍ HANDLE NORMAL POSTS
@@ -131,6 +170,7 @@ async def message_handler(event):
         return
 
     text = message.text or ""
+
     hash_key = get_hash(text)
 
     if hash_key in processed:
@@ -143,28 +183,53 @@ async def message_handler(event):
     clean = clean_text(text)
     clean = remove_noise_lines(clean)
 
-    # optional branding
+    # ==========================
+    # 📢 BRANDING
+    # ==========================
     clean += "\n\n📢 @AAUCentral"
 
     try:
-        if message.media:
-            await client.send_file(destination_channel, message.media, caption=clean)
-        else:
-            await client.send_message(destination_channel, clean)
 
-        print("✅ Message forwarded clean")
+        if message.media:
+
+            await client.send_file(
+                destination_channel,
+                message.media,
+                caption=clean,
+
+                # 🔗 PRESERVE TELEGRAM LINKS
+                formatting_entities=message.entities
+            )
+
+        else:
+
+            await client.send_message(
+                destination_channel,
+                clean,
+
+                # 🔗 PRESERVE TELEGRAM LINKS
+                formatting_entities=message.entities
+            )
+
+        print("✅ Message forwarded clean with links")
 
     except Exception as e:
+
         print("Error:", e)
+
 
 # ==========================
 # 🚀 RUN
 # ==========================
 logging.basicConfig(level=logging.INFO)
 
+
 async def main():
+
     print("🚀 BOT RUNNING...")
+
     await client.run_until_disconnected()
+
 
 with client:
     client.loop.run_until_complete(main())
