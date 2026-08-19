@@ -1,6 +1,7 @@
 from telethon import TelegramClient, events
 import json
 import os
+import re
 import hashlib
 import asyncio
 import logging
@@ -10,10 +11,9 @@ from telethon.sessions import StringSession
 # 🔑 API
 # ==========================
 api_id = 30133788
-api_hash = "YOUR_API_HASH"
+api_hash = "1f2d2d024eaafe22909fbb1131e1f084"
 
-# Put your existing StringSession here
-SESSION = "YOUR_STRING_SESSION"
+SESSION = "1BJWap1sBuyDitjiqa5zljH-ujf-oP7Uf5DmEuRcjL_y4lkiPjgmuz0W4Dp_UAnpTWww7W8F4v9agiRZYpBX4XAW0IDhsjSSTuWbAUXbtaqy4yo-fnSwM7bQlvoeyVvoYqrfGuh6iCMtFT3cJQEfiy-HvrZ32__6Pw45aEEjNT7wpsll5FGCEUW2hPgW-VLu7zizbtGwcSaOXJI7hdftwM5oPsA9XsilJRcqyyMVamJEloHkAn9B5gvMRqDpzohLJvb9rLxtC980gf-qt8dvddGAqFN5-oDRVoOAUGtizRsbVgz1TSrW-IJ_ixgUkB6jRjrwZ2aUPl7a5nzacKyS26RZTWFuOBHM="  # 👈 your real session here
 
 # ==========================
 # 📡 CHANNELS
@@ -27,11 +27,7 @@ source_channels = [
 
 destination_channel = "@AAUCentral"
 
-client = TelegramClient(
-    StringSession(SESSION),
-    api_id,
-    api_hash
-)
+client = TelegramClient(StringSession(SESSION), api_id, api_hash)
 
 # ==========================
 # 🧠 STORAGE
@@ -39,171 +35,59 @@ client = TelegramClient(
 DATA_FILE = "processed.json"
 
 if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
+    with open(DATA_FILE, "r") as f:
         processed = json.load(f)
 else:
     processed = {}
 
-
 def save():
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(processed, f, indent=2)
-
+    with open(DATA_FILE, "w") as f:
+        json.dump(processed, f)
 
 # ==========================
-# 🧹 TEXT
+# 🧹 CLEAN TEXT
 # ==========================
 def clean_text(text):
-    """
-    DO NOT MODIFY ORIGINAL TEXT.
-
-    This keeps:
-    - Normal URLs
-    - Hidden URLs
-    - @usernames
-    - Bold
-    - Italic
-    - Underline
-    - Code
-    - Telegram formatting
-    """
-
     if not text:
         return ""
 
-    return text
+    # ❌ REMOVED:
+    # text = re.sub(r"http\S+", "", text)
+    # text = re.sub(r"t\.me/\S+", "", text)
 
+    # remove @usernames
+    text = re.sub(r"@\w+", "", text)
+
+    # remove spam words
+    text = re.sub(r"(join|subscribe|follow)", "", text, flags=re.IGNORECASE)
+
+    # remove extra spaces
+    text = re.sub(r"\n\s*\n", "\n\n", text)
+
+    return text.strip()
 
 # ==========================
-# 📢 BRANDING
+# 🚫 REMOVE NOISE LINES
 # ==========================
-def add_branding(text):
-    branding = "📢 @AAUCentral"
+def remove_noise_lines(text):
+    lines = text.split("\n")
+    clean_lines = []
 
-    if not text:
-        return branding
+    for line in lines:
+        if any(word in line.lower() for word in ["join", "follow", "subscribe", "@"]):
+            continue
+        clean_lines.append(line)
 
-    # Don't add branding twice
-    if "@AAUCentral" in text:
-        return text
-
-    return text + "\n\n" + branding
-
+    return "\n".join(clean_lines)
 
 # ==========================
 # 🧠 DUPLICATE CHECK
 # ==========================
 def get_hash(text):
-    text = (text or "").lower()
+    text = clean_text((text or "").lower())
+    return hashlib.md5(text.encode()).hexdigest()
 
-    return hashlib.md5(
-        text.encode("utf-8")
-    ).hexdigest()
-
-
-# ==========================
-# 📤 SEND NORMAL MESSAGE
-# ==========================
-async def send_normal_message(message):
-
-    text = message.raw_text or ""
-
-    clean = clean_text(text)
-    clean = add_branding(clean)
-
-    entities = message.entities
-
-    try:
-
-        # Try preserving Telegram formatting/entities
-        await client.send_message(
-            destination_channel,
-            clean,
-            formatting_entities=entities
-        )
-
-        return True
-
-    except Exception as e:
-
-        print("⚠ Formatting send failed:")
-        print(e)
-
-        # ==========================
-        # FALLBACK
-        # ==========================
-        # Try sending without formatting entities.
-        # This ensures normal URLs still work.
-        try:
-
-            await client.send_message(
-                destination_channel,
-                clean
-            )
-
-            print("✅ Sent using fallback method")
-
-            return True
-
-        except Exception as e2:
-
-            print("❌ Fallback send failed:")
-            print(e2)
-
-            return False
-
-
-# ==========================
-# 📤 SEND MEDIA MESSAGE
-# ==========================
-async def send_media_message(message):
-
-    text = message.raw_text or ""
-
-    clean = clean_text(text)
-    clean = add_branding(clean)
-
-    entities = message.entities
-
-    try:
-
-        # Try preserving Telegram formatting/entities
-        await client.send_file(
-            destination_channel,
-            message.media,
-            caption=clean,
-            formatting_entities=entities
-        )
-
-        return True
-
-    except Exception as e:
-
-        print("⚠ Media formatting send failed:")
-        print(e)
-
-        # ==========================
-        # FALLBACK
-        # ==========================
-        try:
-
-            await client.send_file(
-                destination_channel,
-                message.media,
-                caption=clean
-            )
-
-            print("✅ Media sent using fallback method")
-
-            return True
-
-        except Exception as e2:
-
-            print("❌ Media fallback failed:")
-            print(e2)
-
-            return False
-
+print("🚀 PROFESSIONAL BOT RUNNING")
 
 # ==========================
 # 📸 HANDLE ALBUMS
@@ -211,93 +95,29 @@ async def send_media_message(message):
 @client.on(events.Album(chats=source_channels))
 async def album_handler(event):
 
+    text = event.messages[0].text or ""
+    hash_key = get_hash(text)
+
+    if hash_key in processed:
+        print("⚠ Duplicate album skipped")
+        return
+
+    processed[hash_key] = True
+    save()
+
+    files = [msg.media for msg in event.messages]
+
+    clean = clean_text(text)
+    clean = remove_noise_lines(clean)
+
+    # optional branding
+    clean += "\n\n📢 @AAUCentral"
+
     try:
-
-        message = event.messages[0]
-
-        text = message.raw_text or ""
-
-        # ==========================
-        # DUPLICATE CHECK
-        # ==========================
-        hash_key = get_hash(text)
-
-        if hash_key in processed:
-
-            print("⚠ Duplicate album skipped")
-
-            return
-
-        # ==========================
-        # GET MEDIA
-        # ==========================
-        files = [
-            msg.media
-            for msg in event.messages
-            if msg.media
-        ]
-
-        if not files:
-
-            print("⚠ Album contains no media")
-
-            return
-
-        # ==========================
-        # CAPTION
-        # ==========================
-        clean = clean_text(text)
-        clean = add_branding(clean)
-
-        # ==========================
-        # SEND ALBUM
-        # ==========================
-        try:
-
-            await client.send_file(
-                destination_channel,
-                files,
-                caption=clean,
-                formatting_entities=message.entities
-            )
-
-            print("📸 Album forwarded with links and formatting")
-
-            # Only mark as processed AFTER successful sending
-            processed[hash_key] = True
-            save()
-
-        except Exception as e:
-
-            print("⚠ Album formatting send failed:")
-            print(e)
-
-            # ==========================
-            # FALLBACK ALBUM
-            # ==========================
-            try:
-
-                await client.send_file(
-                    destination_channel,
-                    files,
-                    caption=clean
-                )
-
-                print("📸 Album forwarded using fallback")
-
-                processed[hash_key] = True
-                save()
-
-            except Exception as e2:
-
-                print("❌ Album forwarding failed:")
-                print(e2)
-
+        await client.send_file(destination_channel, files, caption=clean)
+        print("📸 Album forwarded clean")
     except Exception as e:
-
-        print("❌ Album handler error:")
-        print(e)
-
+        print("Error:", e)
 
 # ==========================
 # ✍ HANDLE NORMAL POSTS
@@ -305,106 +125,46 @@ async def album_handler(event):
 @client.on(events.NewMessage(chats=source_channels))
 async def message_handler(event):
 
+    message = event.message
+
+    if message.grouped_id:
+        return
+
+    text = message.text or ""
+    hash_key = get_hash(text)
+
+    if hash_key in processed:
+        print("⚠ Duplicate skipped")
+        return
+
+    processed[hash_key] = True
+    save()
+
+    clean = clean_text(text)
+    clean = remove_noise_lines(clean)
+
+    # optional branding
+    clean += "\n\n📢 @AAUCentral"
+
     try:
-
-        message = event.message
-
-        # ==========================
-        # IGNORE ALBUM MESSAGES
-        # ==========================
-        if message.grouped_id:
-            return
-
-        # ==========================
-        # ORIGINAL TEXT
-        # ==========================
-        text = message.raw_text or ""
-
-        # ==========================
-        # DUPLICATE CHECK
-        # ==========================
-        hash_key = get_hash(text)
-
-        if hash_key in processed:
-
-            print("⚠ Duplicate skipped")
-
-            return
-
-        # ==========================
-        # SEND MESSAGE
-        # ==========================
-        success = False
-
         if message.media:
-
-            success = await send_media_message(message)
-
+            await client.send_file(destination_channel, message.media, caption=clean)
         else:
+            await client.send_message(destination_channel, clean)
 
-            success = await send_normal_message(message)
-
-        # ==========================
-        # ONLY SAVE AFTER SUCCESS
-        # ==========================
-        if success:
-
-            processed[hash_key] = True
-            save()
-
-            print("✅ Message forwarded successfully")
-
-        else:
-
-            print("❌ Message was NOT forwarded")
-            print("It will be tried again if another event occurs.")
+        print("✅ Message forwarded clean")
 
     except Exception as e:
-
-        print("❌ Message handler error:")
-        print(e)
-
+        print("Error:", e)
 
 # ==========================
 # 🚀 RUN
 # ==========================
-logging.basicConfig(
-    level=logging.INFO
-)
-
+logging.basicConfig(level=logging.INFO)
 
 async def main():
-
-    print("")
-    print("======================================")
-    print("🚀 AAUCENTRAL FORWARDING BOT")
-    print("======================================")
-    print("")
-    print("📡 Source channels:")
-
-    for channel in source_channels:
-        print("   •", channel)
-
-    print("")
-    print("📢 Destination:")
-    print("   •", destination_channel)
-
-    print("")
-    print("🔗 Links: PRESERVED")
-    print("👤 @usernames: PRESERVED")
-    print("✨ Formatting: PRESERVED")
-    print("📢 Branding: @AAUCentral")
-    print("")
-    print("======================================")
     print("🚀 BOT RUNNING...")
-    print("======================================")
-    print("")
-
     await client.run_until_disconnected()
 
-
-# ==========================
-# START
-# ==========================
 with client:
     client.loop.run_until_complete(main())
