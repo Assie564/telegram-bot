@@ -51,20 +51,10 @@ def clean_text(text):
     if not text:
         return ""
 
-    # remove links
-    text = re.sub(r"http\S+", "", text)
-
-    # remove telegram links
-    text = re.sub(r"t\.me/\S+", "", text)
-
-    # remove @usernames
-    text = re.sub(r"@\w+", "", text)
-
-    # remove spam words
-    text = re.sub(r"(join|subscribe|follow)", "", text, flags=re.IGNORECASE)
-
-    # remove extra spaces
-    text = re.sub(r"\n\s*\n", "\n\n", text)
+    # KEEP ALL LINKS
+    # KEEP ALL @USERNAMES
+    # Only remove excessive blank lines
+    text = re.sub(r"\n\s*\n+", "\n\n", text)
 
     return text.strip()
 
@@ -76,11 +66,31 @@ def remove_noise_lines(text):
     clean_lines = []
 
     for line in lines:
-        if any(word in line.lower() for word in ["join", "follow", "subscribe", "@"]):
+        lower = line.lower().strip()
+
+        # Only remove lines that are exactly spam words.
+        # Do NOT remove lines containing links or @usernames.
+        if lower in ["join", "follow", "subscribe"]:
             continue
+
         clean_lines.append(line)
 
-    return "\n".join(clean_lines)
+    return "\n".join(clean_lines).strip()
+
+# ==========================
+# 📢 AAUCENTRAL BRANDING
+# ==========================
+def add_branding(text):
+    branding = "📢 @AAUCentral"
+
+    if not text:
+        return branding
+
+    # Prevent duplicate branding
+    if "@AAUCentral" in text:
+        return text
+
+    return f"{text}\n\n{branding}"
 
 # ==========================
 # 🧠 DUPLICATE CHECK
@@ -111,9 +121,7 @@ async def album_handler(event):
 
     clean = clean_text(text)
     clean = remove_noise_lines(clean)
-
-    # optional branding
-    clean += "\n\n📢 @AAUCentral"
+    clean = add_branding(clean)
 
     try:
         await client.send_file(destination_channel, files, caption=clean)
@@ -144,15 +152,20 @@ async def message_handler(event):
 
     clean = clean_text(text)
     clean = remove_noise_lines(clean)
-
-    # optional branding
-    clean += "\n\n📢 @AAUCentral"
+    clean = add_branding(clean)
 
     try:
         if message.media:
-            await client.send_file(destination_channel, message.media, caption=clean)
+            await client.send_file(
+                destination_channel,
+                message.media,
+                caption=clean
+            )
         else:
-            await client.send_message(destination_channel, clean)
+            await client.send_message(
+                destination_channel,
+                clean
+            )
 
         print("✅ Message forwarded clean")
 
