@@ -11,9 +11,12 @@ from telethon.sessions import StringSession
 # 🔑 API
 # ==========================
 api_id = 30133788
-api_hash = "1f2d2d024eaafe22909fbb1131e1f084"
+api_hash = "YOUR_API_HASH"
 
-SESSION = "1BJWap1sBuyDitjiqa5zljH-ujf-oP7Uf5DmEuRcjL_y4lkiPjgmuz0W4Dp_UAnpTWww7W8F4v9agiRZYpBX4XAW0IDhsjSSTuWbAUXbtaqy4yo-fnSwM7bQlvoeyVvoYqrfGuh6iCMtFT3cJQEfiy-HvrZ32__6Pw45aEEjNT7wpsll5FGCEUW2hPgW-VLu7zizbtGwcSaOXJI7hdftwM5oPsA9XsilJRcqyyMVamJEloHkAn9B5gvMRqDpzohLJvb9rLxtC980gf-qt8dvddGAqFN5-oDRVoOAUGtizRsbVgz1TSrW-IJ_ixgUkB6jRjrwZ2aUPl7a5nzacKyS26RZTWFuOBHM="  # 👈 your real session here
+# IMPORTANT:
+# Put your Telegram StringSession here.
+# Do NOT publish this value on GitHub or share it.
+SESSION = "YOUR_STRING_SESSION"
 
 # ==========================
 # 📡 CHANNELS
@@ -27,7 +30,11 @@ source_channels = [
 
 destination_channel = "@AAUCentral"
 
-client = TelegramClient(StringSession(SESSION), api_id, api_hash)
+client = TelegramClient(
+    StringSession(SESSION),
+    api_id,
+    api_hash
+)
 
 # ==========================
 # 🧠 STORAGE
@@ -35,47 +42,41 @@ client = TelegramClient(StringSession(SESSION), api_id, api_hash)
 DATA_FILE = "processed.json"
 
 if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "r") as f:
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
         processed = json.load(f)
 else:
     processed = {}
 
+
 def save():
-    with open(DATA_FILE, "w") as f:
-        json.dump(processed, f)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(processed, f, indent=2)
+
 
 # ==========================
-# 🧹 CLEAN TEXT
+# 🧹 TEXT
 # ==========================
 def clean_text(text):
+    """
+    IMPORTANT:
+    Do NOT modify the original Telegram text.
+
+    This preserves:
+    - Normal URLs
+    - Hidden URLs
+    - @usernames
+    - Bold
+    - Italic
+    - Underline
+    - Code
+    - Telegram formatting entities
+    """
+
     if not text:
         return ""
 
-    # KEEP ALL LINKS
-    # KEEP ALL @USERNAMES
-    # Only remove excessive blank lines
-    text = re.sub(r"\n\s*\n+", "\n\n", text)
+    return text
 
-    return text.strip()
-
-# ==========================
-# 🚫 REMOVE NOISE LINES
-# ==========================
-def remove_noise_lines(text):
-    lines = text.split("\n")
-    clean_lines = []
-
-    for line in lines:
-        lower = line.lower().strip()
-
-        # Only remove lines that are exactly spam words.
-        # Do NOT remove lines containing links or @usernames.
-        if lower in ["join", "follow", "subscribe"]:
-            continue
-
-        clean_lines.append(line)
-
-    return "\n".join(clean_lines).strip()
 
 # ==========================
 # 📢 AAUCENTRAL BRANDING
@@ -92,14 +93,20 @@ def add_branding(text):
 
     return f"{text}\n\n{branding}"
 
+
 # ==========================
 # 🧠 DUPLICATE CHECK
 # ==========================
 def get_hash(text):
-    text = clean_text((text or "").lower())
-    return hashlib.md5(text.encode()).hexdigest()
+    text = (text or "").lower()
+
+    return hashlib.md5(
+        text.encode("utf-8")
+    ).hexdigest()
+
 
 print("🚀 PROFESSIONAL BOT RUNNING")
+
 
 # ==========================
 # 📸 HANDLE ALBUMS
@@ -107,27 +114,59 @@ print("🚀 PROFESSIONAL BOT RUNNING")
 @client.on(events.Album(chats=source_channels))
 async def album_handler(event):
 
-    text = event.messages[0].text or ""
-    hash_key = get_hash(text)
-
-    if hash_key in processed:
-        print("⚠ Duplicate album skipped")
-        return
-
-    processed[hash_key] = True
-    save()
-
-    files = [msg.media for msg in event.messages]
-
-    clean = clean_text(text)
-    clean = remove_noise_lines(clean)
-    clean = add_branding(clean)
-
     try:
-        await client.send_file(destination_channel, files, caption=clean)
-        print("📸 Album forwarded clean")
+        # Use the first message for the caption
+        message = event.messages[0]
+
+        # raw_text preserves the original Telegram text
+        text = message.raw_text or ""
+
+        # ==========================
+        # DUPLICATE CHECK
+        # ==========================
+        hash_key = get_hash(text)
+
+        if hash_key in processed:
+            print("⚠ Duplicate album skipped")
+            return
+
+        processed[hash_key] = True
+        save()
+
+        # ==========================
+        # GET MEDIA
+        # ==========================
+        files = [
+            msg.media
+            for msg in event.messages
+            if msg.media
+        ]
+
+        # ==========================
+        # KEEP ORIGINAL TEXT
+        # ==========================
+        clean = clean_text(text)
+
+        # ==========================
+        # ADD BRANDING
+        # ==========================
+        clean = add_branding(clean)
+
+        # ==========================
+        # SEND ALBUM
+        # ==========================
+        await client.send_file(
+            destination_channel,
+            files,
+            caption=clean,
+            formatting_entities=message.entities
+        )
+
+        print("📸 Album forwarded with original links")
+
     except Exception as e:
-        print("Error:", e)
+        print("❌ Album Error:", e)
+
 
 # ==========================
 # ✍ HANDLE NORMAL POSTS
@@ -135,51 +174,97 @@ async def album_handler(event):
 @client.on(events.NewMessage(chats=source_channels))
 async def message_handler(event):
 
-    message = event.message
-
-    if message.grouped_id:
-        return
-
-    text = message.text or ""
-    hash_key = get_hash(text)
-
-    if hash_key in processed:
-        print("⚠ Duplicate skipped")
-        return
-
-    processed[hash_key] = True
-    save()
-
-    clean = clean_text(text)
-    clean = remove_noise_lines(clean)
-    clean = add_branding(clean)
-
     try:
+
+        message = event.message
+
+        # ==========================
+        # IGNORE ALBUM MESSAGES
+        # ==========================
+        if message.grouped_id:
+            return
+
+        # ==========================
+        # ORIGINAL TEXT
+        # ==========================
+        text = message.raw_text or ""
+
+        # ==========================
+        # DUPLICATE CHECK
+        # ==========================
+        hash_key = get_hash(text)
+
+        if hash_key in processed:
+            print("⚠ Duplicate skipped")
+            return
+
+        processed[hash_key] = True
+        save()
+
+        # ==========================
+        # KEEP ORIGINAL TEXT
+        # ==========================
+        clean = clean_text(text)
+
+        # ==========================
+        # ADD BRANDING
+        # ==========================
+        clean = add_branding(clean)
+
+        # ==========================
+        # SEND MESSAGE
+        # ==========================
         if message.media:
+
             await client.send_file(
                 destination_channel,
                 message.media,
-                caption=clean
+                caption=clean,
+                formatting_entities=message.entities
             )
+
         else:
+
             await client.send_message(
                 destination_channel,
-                clean
+                clean,
+                formatting_entities=message.entities
             )
 
-        print("✅ Message forwarded clean")
+        print("✅ Message forwarded with original links")
 
     except Exception as e:
-        print("Error:", e)
+        print("❌ Message Error:", e)
+
 
 # ==========================
 # 🚀 RUN
 # ==========================
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO
+)
+
 
 async def main():
+
     print("🚀 BOT RUNNING...")
+    print("📡 Monitoring:")
+
+    for channel in source_channels:
+        print(f"   • {channel}")
+
+    print(f"📢 Destination: {destination_channel}")
+    print("🔗 Original links: PRESERVED")
+    print("👤 Original @usernames: PRESERVED")
+    print("✨ Telegram formatting: PRESERVED")
+    print("")
+
+
     await client.run_until_disconnected()
 
+
+# ==========================
+# START
+# ==========================
 with client:
     client.loop.run_until_complete(main())
