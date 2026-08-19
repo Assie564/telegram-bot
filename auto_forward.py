@@ -8,23 +8,30 @@ import logging
 from telethon.sessions import StringSession
 
 # ==========================
-# 🔑 API
+# 🔑 API & CONFIG
 # ==========================
 api_id = 30133788
 api_hash = "1f2d2d024eaafe22909fbb1131e1f084"
-
 SESSION = "1BJWap1sBuyDitjiqa5zljH-ujf-oP7Uf5DmEuRcjL_y4lkiPjgmuz0W4Dp_UAnpTWww7W8F4v9agiRZYpBX4XAW0IDhsjSSTuWbAUXbtaqy4yo-fnSwM7bQlvoeyVvoYqrfGuh6iCMtFT3cJQEfiy-HvrZ32__6Pw45aEEjNT7wpsll5FGCEUW2hPgW-VLu7zizbtGwcSaOXJI7hdftwM5oPsA9XsilJRcqyyMVamJEloHkAn9B5gvMRqDpzohLJvb9rLxtC980gf-qt8dvddGAqFN5-oDRVoOAUGtizRsbVgz1TSrW-IJ_ixgUkB6jRjrwZ2aUPl7a5nzacKyS26RZTWFuOBHM="
+
+# --- NEW MODE SETTING ---
+# Options: "media" (only photos/videos), "text" (only text messages), or "all"
+PROCESS_MODE = "media" 
+
+# --- LINK REPLACEMENT DICTIONARY ---
+# Add items here to automatically swap old links/usernames for new ones
+REPLACEMENTS = {
+    "@AAUMEREJA": "@AAUCentral",
+    "@AAU_GENERAL": "@AAUCentral",
+    "@PECCAAiT": "@AAUCentral",
+    "@AAUNews11": "@AAUCentral",
+    "t.me/old_link": "t.me/AAUCentral"
+}
 
 # ==========================
 # 📡 CHANNELS
 # ==========================
-source_channels = [
-    "@AAUMEREJA",
-    "@AAU_GENERAL",
-    "@PECCAAiT",
-    "@AAUNews11"
-]
-
+source_channels = ["@AAUMEREJA", "@AAU_GENERAL", "@PECCAAiT", "@AAUNews11"]
 destination_channel = "@AAUCentral"
 
 client = TelegramClient(StringSession(SESSION), api_id, api_hash)
@@ -33,50 +40,34 @@ client = TelegramClient(StringSession(SESSION), api_id, api_hash)
 # 🧠 STORAGE
 # ==========================
 DATA_FILE = "processed.json"
-
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r") as f:
         processed = json.load(f)
 else:
     processed = {}
 
-
 def save():
     with open(DATA_FILE, "w") as f:
         json.dump(processed, f)
 
-
 # ==========================
-# 🧹 CLEAN TEXT
+# 🧹 CLEAN & REPLACE TEXT
 # ==========================
 def clean_text(text):
     if not text:
         return ""
 
-    # IMPORTANT:
-    # DO NOT REMOVE URLS.
-    # DO NOT REMOVE t.me LINKS.
-    #
-    # Original lines removed:
-    # text = re.sub(r"http\S+", "", text)
-    # text = re.sub(r"t\.me/\S+", "", text)
+    # 1. Automatic Link/Username Replacement
+    for old, new in REPLACEMENTS.items():
+        text = text.replace(old, new)
 
-    # remove @usernames
-    text = re.sub(r"@\w+", "", text)
+    # 2. Remove spam words (but NOT links or @usernames)
+    text = re.sub(r"(join|subscribe|follow|contact us)", "", text, flags=re.IGNORECASE)
 
-    # remove spam words
-    text = re.sub(
-        r"(join|subscribe|follow)",
-        "",
-        text,
-        flags=re.IGNORECASE
-    )
-
-    # remove extra spaces
+    # 3. Clean up extra spaces/newlines
     text = re.sub(r"\n\s*\n", "\n\n", text)
-
+    
     return text.strip()
-
 
 # ==========================
 # 🚫 REMOVE NOISE LINES
@@ -86,95 +77,75 @@ def remove_noise_lines(text):
     clean_lines = []
 
     for line in lines:
-        if any(
-            word in line.lower()
-            for word in ["join", "follow", "subscribe", "@"]
-        ):
+        # We no longer remove lines just because they have an "@"
+        # We only remove lines that are purely "Join us" or "Subscribe"
+        lower_line = line.lower().strip()
+        if lower_line in ["join", "subscribe", "follow", "click here"]:
             continue
-
         clean_lines.append(line)
 
     return "\n".join(clean_lines)
-
 
 # ==========================
 # 🧠 DUPLICATE CHECK
 # ==========================
 def get_hash(text):
-    text = clean_text((text or "").lower())
-    return hashlib.md5(text.encode()).hexdigest()
+    # Use the raw text for hashing to ensure uniqueness
+    return hashlib.md5((text or "").lower().encode()).hexdigest()
 
-
-print("🚀 PROFESSIONAL BOT RUNNING")
-
+print(f"🚀 BOT RUNNING IN MODE: {PROCESS_MODE}")
 
 # ==========================
 # 📸 HANDLE ALBUMS
 # ==========================
 @client.on(events.Album(chats=source_channels))
 async def album_handler(event):
+    # Mode Filter
+    if PROCESS_MODE == "text":
+        return
 
-    message = event.messages[0]
-
-    text = message.text or ""
-
+    text = event.messages[0].text or ""
     hash_key = get_hash(text)
 
     if hash_key in processed:
-        print("⚠ Duplicate album skipped")
         return
 
     processed[hash_key] = True
     save()
 
-    files = [
-        msg.media
-        for msg in event.messages
-    ]
-
+    files = [msg.media for msg in event.messages]
     clean = clean_text(text)
     clean = remove_noise_lines(clean)
-
-    # ==========================
-    # 📢 BRANDING
-    # ==========================
     clean += "\n\n📢 @AAUCentral"
 
     try:
-
-        await client.send_file(
-            destination_channel,
-            files,
-            caption=clean,
-
-            # 🔗 PRESERVE TELEGRAM LINKS
-            formatting_entities=message.entities
-        )
-
-        print("📸 Album forwarded clean with links")
-
+        await client.send_file(destination_channel, files, caption=clean)
+        print("📸 Album forwarded")
     except Exception as e:
-
         print("Error:", e)
-
 
 # ==========================
 # ✍ HANDLE NORMAL POSTS
 # ==========================
 @client.on(events.NewMessage(chats=source_channels))
 async def message_handler(event):
-
     message = event.message
-
     if message.grouped_id:
         return
 
-    text = message.text or ""
+    # --- MODE FILTERING ---
+    has_media = bool(message.media)
+    
+    if PROCESS_MODE == "media" and not has_media:
+        return # Skip text-only posts
+    
+    if PROCESS_MODE == "text" and has_media:
+        return # Skip media posts
 
+    text = message.text or ""
     hash_key = get_hash(text)
 
     if hash_key in processed:
-        print("⚠ Duplicate skipped")
         return
 
     processed[hash_key] = True
@@ -182,54 +153,24 @@ async def message_handler(event):
 
     clean = clean_text(text)
     clean = remove_noise_lines(clean)
-
-    # ==========================
-    # 📢 BRANDING
-    # ==========================
     clean += "\n\n📢 @AAUCentral"
 
     try:
-
         if message.media:
-
-            await client.send_file(
-                destination_channel,
-                message.media,
-                caption=clean,
-
-                # 🔗 PRESERVE TELEGRAM LINKS
-                formatting_entities=message.entities
-            )
-
+            await client.send_file(destination_channel, message.media, caption=clean)
         else:
-
-            await client.send_message(
-                destination_channel,
-                clean,
-
-                # 🔗 PRESERVE TELEGRAM LINKS
-                formatting_entities=message.entities
-            )
-
-        print("✅ Message forwarded clean with links")
-
+            await client.send_message(destination_channel, clean)
+        print("✅ Message forwarded")
     except Exception as e:
-
         print("Error:", e)
-
 
 # ==========================
 # 🚀 RUN
 # ==========================
 logging.basicConfig(level=logging.INFO)
 
-
 async def main():
-
-    print("🚀 BOT RUNNING...")
-
     await client.run_until_disconnected()
-
 
 with client:
     client.loop.run_until_complete(main())
