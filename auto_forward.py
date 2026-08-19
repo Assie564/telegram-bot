@@ -256,7 +256,6 @@ async def main():
     print(f"📢 Destination: {destination_channel}")
     print("🔗 Original links: PRESERVED")
     print("👤 Original @usernames: PRESERVED")
-    print("✨ Telegram formatting: PRESERVED")
     print("")
 
 
