@@ -20,7 +20,7 @@ print("=" * 50)
 # Put these in Railway Variables
 API_ID = int(os.getenv("API_ID", "30133788"))
 API_HASH = os.getenv("API_HASH", "1f2d2d024eaafe22909fbb1131e1f084")
-STRING_SESSION = os.getenv("STRING_SESSION", "1BJWap1sBuyDitjiqa5zljH-ujf-oP7Uf5DmEuRcjL_y4lkiPjgmuz0W4Dp_UAnpTWww7W8F4v9agiRZYpBX4XAW0IDhsjSSTuWbAUXbtaqy4yo-fnSwM7bQlvoeyVvoYqrfGuh6iCMtFT3cJQEfiy-HvrZ32__6Pw45aEEjNT7wpsll5FGCEUW2hPgW-VLu7zizbtGwcSaOXJI7hdftwM5oPsA9XsilJRcqyyMVamJEloHkAn9B5gvMRqDpzohLJvb9rLxtC980gf-qt8dvddGAqFN5-oDRVoOAUGtizRsbVgz1TSrW-IJ_ixgUkB6jRjrwZ2aUPl7a5nzacKyS26RZTWFuOBHM=")
+STRING_SESSION = os.getenv("STRING_SESSION", "1BJWap1sBu7QDso8FxYgqLoL068fSdEvjsSDdDuI_XYpxdGzYT-yNOgAbv7P1Cw95F5JLVb7_I2FSW2TyCi99KGbOZalLPT7Ip7QRpVbZV_kaeXbBj-Yd1LtwGIMlHIFpr0FVwPR0E08oFYU1UB2VILPBFCDJ-t_uivmgHynYz0qN8luh3qwThRq89G7UOr0oZgW385db5fflDSlM5XSvAUlMrDJa0hE8IgTyVyfmRTejEKt588cCsKIVLEG98r0ay4Ft7c3P3B33NiSyfz7HK4juq565o47SFuFIXyNfBSk2CRhdsUW8t00C3edEmgoI3NKxX0rmpovbi0gRW9XWQdYoWjb0_DI=")
 
 if not API_HASH:
     print("❌ API_HASH environment variable not set!")
